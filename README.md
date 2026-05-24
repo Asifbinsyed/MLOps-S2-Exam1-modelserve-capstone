@@ -1,5 +1,7 @@
 # ModelServe
 
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Asifbinsyed/MLOps-S2-Exam1-modelserve-capstone?utm_source=oss&utm_medium=github&utm_campaign=Asifbinsyed%2FMLOps-S2-Exam1-modelserve-capstone&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
+
 > MLOps with Cloud Season 2 — Capstone Exam
 
 <!-- TODO: Write a 2-3 sentence project description -->
