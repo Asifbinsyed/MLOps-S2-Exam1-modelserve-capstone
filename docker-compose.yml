@@ -1,94 +1,88 @@
 version: "3.9"
 
 # ===============
-# ModelServe : Local Development Stack 
+# ModelServe : Local Development Stack
 # ================
 #
-# Usage: 
-#   docker compose up -d -> start in background 
-#   docker compose down -v -> stop and remove volumes 
-#   docker compose logs -f -> follow all logs 
+# Usage:
+#   docker compose up -d -> start in background
+#   docker compose down -v -> stop and remove volumes
+#   docker compose logs -f -> follow all logs
 #
-# Ports 
+# Ports
 #   5432 -> Postgres (MLflow Backend store)
-#   6397 -> Redis (Feast online Store) 
-#   5000 -> MLflow (tracking UI + Rest API) 
+#   6379 -> Redis (Feast online store)
+#   5000 -> MLflow (tracking UI + REST API)
 #
-services: 
-  postgres: 
+services:
+  postgres:
     image: postgres:15-alpine
     container_name: modelserve-postgres
     restart: unless-stopped
-    environment: 
-      POSTGRES_USER:  ${POSTGRES_USER: -mlflow}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD: -mlflow}
-      POSTGRES_DB: ${POSTGRES_DB: -mlflow}
-    ports: 
-      - "5432: 5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mlflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mlflow}
+      POSTGRES_DB: ${POSTGRES_DB:-mlflow}
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres_data : /var/lib/postgresql/postgresql/data 
-    healthcheck: 
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER: -mlflow} -d ${POSTGRES_DB: -mlflow}"]
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mlflow} -d ${POSTGRES_DB:-mlflow}"]
       interval: 5s
-      timeout: 5s 
-      retries : 10 
-      start_period: 10s 
-    networks: 
-      - modelserve 
-
-  redis: 
-    imaage : redis:7 -alpine 
-    container_name: modelserve-redis 
-    restart: unless-stopped
-    ports: 
-      - "6379: 6379"
-    networks: 
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
       - modelserve
-    healthcheck: 
+
+  redis:
+    image: redis:7-alpine
+    container_name: modelserve-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - modelserve
+    healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
-      retries: 10 
-      start_period: 5s 
+      retries: 10
+      start_period: 5s
     volumes:
-      - redis_data: /data
+      - redis_data:/data
 
-  mlflow: 
+  mlflow:
     image: ghcr.io/mlflow/mlflow:v2.12.2
-    container_name: modelserve-mlflow 
+    container_name: modelserve-mlflow
     restart: unless-stopped
-    depends_on: 
-      postgres: 
-        condition: service_healthy 
-      ports: 
-        - "5000:5000"
-      networks:
-          - modelserve
-      environment:
-        MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
-        MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlartifacts
-      command: >
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - modelserve
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlartifacts
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+    command: >
       mlflow server
-        --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
-        --default-artifact-root /mlartifacts
-        --host 0.0.0.0
-        --port 5000
-        --serve-artifacts
-
-      healthcheck:
-      test: ["CMD", "c
-
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
+      --default-artifact-root /mlartifacts
+      --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 20surl", "-f", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
       start_period: 20s
-  
+
 volumes:
   postgres_data:
     name: modelserve-postgres-data
