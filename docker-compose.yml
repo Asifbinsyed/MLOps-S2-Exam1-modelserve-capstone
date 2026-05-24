@@ -1,24 +1,103 @@
-# ============================================================================
-# ModelServe — Docker Compose (Local Development)
-# ============================================================================
-# TODO: Define your complete local development stack.
+version: "3.9"
+
+# ===============
+# ModelServe : Local Development Stack 
+# ================
 #
-# Required services:
-#   - PostgreSQL (MLflow backend store)
-#   - Redis (Feast online store)
-#   - MLflow Tracking Server (depends on Postgres)
-#   - FastAPI Inference Service (depends on MLflow, Redis)
-#   - Prometheus (scrapes FastAPI /metrics) — add in Sessions 3-4
-#   - Grafana (reads from Prometheus) — add in Sessions 3-4
+# Usage: 
+#   docker compose up -d -> start in background 
+#   docker compose down -v -> stop and remove volumes 
+#   docker compose logs -f -> follow all logs 
 #
-# For each service, consider:
-#   - Which Docker image to use
-#   - What ports to expose
-#   - What environment variables to pass
-#   - What volumes to mount for persistence
-#   - What healthcheck to configure
-#   - What depends_on relationships exist
-#   - What network to attach to
+# Ports 
+#   5432 -> Postgres (MLflow Backend store)
+#   6397 -> Redis (Feast online Store) 
+#   5000 -> MLflow (tracking UI + Rest API) 
 #
-# The entire stack must start with a single: docker compose up
-# ============================================================================
+services: 
+  postgres: 
+    image: postgres:15-alpine
+    container_name: modelserve-postgres
+    restart: unless-stopped
+    environment: 
+      POSTGRES_USER:  ${POSTGRES_USER: -mlflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD: -mlflow}
+      POSTGRES_DB: ${POSTGRES_DB: -mlflow}
+    ports: 
+      - "5432: 5432"
+    volumes:
+      - postgres_data : /var/lib/postgresql/postgresql/data 
+    healthcheck: 
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER: -mlflow} -d ${POSTGRES_DB: -mlflow}"]
+      interval: 5s
+      timeout: 5s 
+      retries : 10 
+      start_period: 10s 
+    networks: 
+      - modelserve 
+
+  redis: 
+    imaage : redis:7 -alpine 
+    container_name: modelserve-redis 
+    restart: unless-stopped
+    ports: 
+      - "6379: 6379"
+    networks: 
+      - modelserve
+    healthcheck: 
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10 
+      start_period: 5s 
+    volumes:
+      - redis_data: /data
+
+  mlflow: 
+    image: ghcr.io/mlflow/mlflow:v2.12.2
+    container_name: modelserve-mlflow 
+    restart: unless-stopped
+    depends_on: 
+      postgres: 
+        condition: service_healthy 
+      ports: 
+        - "5000:5000"
+      networks:
+          - modelserve
+      environment:
+        MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
+        MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlartifacts
+      command: >
+      mlflow server
+        --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
+        --default-artifact-root /mlartifacts
+        --host 0.0.0.0
+        --port 5000
+        --serve-artifacts
+
+      healthcheck:
+      test: ["CMD", "c
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20surl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  
+volumes:
+  postgres_data:
+    name: modelserve-postgres-data
+  redis_data:
+    name: modelserve-redis-data
+  mlflow_artifacts:
+    name: modelserve-mlflow-artifacts
+
+networks:
+  modelserve:
+    name: modelserve-network
+    driver: bridge
