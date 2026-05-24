@@ -8,3 +8,4 @@
 #   - IDE and OS files
 #   - Docker build artifacts
 #   - Test coverage reports
+.env 
